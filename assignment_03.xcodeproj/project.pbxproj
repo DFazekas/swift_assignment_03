@@ -54,14 +54,46 @@
 		00B78CE72194C57500157530 /* assignment_03 */ = {
 			isa = PBXGroup;
 			children = (
-				00B78CE82194C57500157530 /* AppDelegate.swift */,
-				00B78CEA2194C57500157530 /* ViewController.swift */,
-				00B78CEC2194C57500157530 /* Main.storyboard */,
-				00B78CEF2194C57800157530 /* Assets.xcassets */,
-				00B78CF12194C57800157530 /* LaunchScreen.storyboard */,
+				00B78CFD2194C5F900157530 /* Classes */,
+				00B78CFC2194C5EE00157530 /* Assets */,
+				00B78CFB2194C5E300157530 /* View Controllers */,
+				00B78CFA2194C5D900157530 /* Storyboards */,
 				00B78CF42194C57800157530 /* Info.plist */,
 			);
 			path = assignment_03;
+			sourceTree = "<group>";
+		};
+		00B78CFA2194C5D900157530 /* Storyboards */ = {
+			isa = PBXGroup;
+			children = (
+				00B78CEC2194C57500157530 /* Main.storyboard */,
+				00B78CF12194C57800157530 /* LaunchScreen.storyboard */,
+			);
+			path = Storyboards;
+			sourceTree = "<group>";
+		};
+		00B78CFB2194C5E300157530 /* View Controllers */ = {
+			isa = PBXGroup;
+			children = (
+				00B78CEA2194C57500157530 /* ViewController.swift */,
+			);
+			path = "View Controllers";
+			sourceTree = "<group>";
+		};
+		00B78CFC2194C5EE00157530 /* Assets */ = {
+			isa = PBXGroup;
+			children = (
+				00B78CEF2194C57800157530 /* Assets.xcassets */,
+			);
+			path = Assets;
+			sourceTree = "<group>";
+		};
+		00B78CFD2194C5F900157530 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				00B78CE82194C57500157530 /* AppDelegate.swift */,
+			);
+			path = Classes;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -289,7 +321,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "swift.assignment-03";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -306,7 +338,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "swift.assignment-03";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
