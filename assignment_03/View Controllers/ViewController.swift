@@ -30,11 +30,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         centerMapOnLocation(location: initialLocation)
         
         // Set the pin on the map.
-        let dropPin = MKPointAnnotation()
-        dropPin.coordinate = initialLocation.coordinate
-        dropPin.title = "Starting at Sheridan College"
-        myMapView.addAnnotation(dropPin)
-        myMapView.selectAnnotation(dropPin, animated: true)
+        self.drawDropPinOnMap(location: initialLocation, title: "Sheridan College")
     }
 
     override func didReceiveMemoryWarning() {
@@ -78,11 +74,8 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 
                 // Create pin and drop.
                 //TODO: Remove existing pin.
-                let dropPin = MKPointAnnotation()
-                dropPin.coordinate = newLocation.coordinate
-                dropPin.title = placemark.name
-                self.myMapView.addAnnotation(dropPin)
-                self.myMapView.selectAnnotation(dropPin, animated: true)
+                self.drawDropPinOnMap(location: newLocation, title: placemark.name!)
+                
                 
                 // Determine travel route.
                 let request = MKDirectionsRequest()
@@ -135,6 +128,16 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         renderer.lineWidth = 3.0
         
         return renderer
+    }
+    
+    func drawDropPinOnMap(location : CLLocation, title : String) {
+        // Draw named DropPin on MapView.
+        
+        let dropPin = MKPointAnnotation()
+        dropPin.coordinate = location.coordinate
+        dropPin.title = title
+        self.myMapView.addAnnotation(dropPin)
+        self.myMapView.selectAnnotation(dropPin, animated: true)
     }
     
     // TableView content.
