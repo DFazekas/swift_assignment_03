@@ -16,10 +16,10 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     var srcPlacemark : CLPlacemark? = nil
     var destPlacemark : CLPlacemark? = nil
     var routeSteps = ["Enter a destination to see steps"] as NSMutableArray // List of directions.
-    var startingDropPin : MKPointAnnotation = MKPointAnnotation() // DropPin for starting location.
-    var destinationDropPin : MKPointAnnotation = MKPointAnnotation() // DropPin for destination location.
-    var waypointDropPin1 : MKPointAnnotation = MKPointAnnotation() // DropPin for waypoint 1.
-    var waypointDropPin2 : MKPointAnnotation = MKPointAnnotation() // DropPin for waypoint 2.
+    var srcPin : MKPointAnnotation? = nil // DropPin for starting location.
+    var destPin : MKPointAnnotation? = nil // DropPin for destination location.
+    var waypointPin1 : MKPointAnnotation = MKPointAnnotation() // DropPin for waypoint 1.
+    var waypointPin2 : MKPointAnnotation = MKPointAnnotation() // DropPin for waypoint 2.
     
     
     @IBOutlet var myMapView : MKMapView!
@@ -63,16 +63,27 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         let way2Text = tfWaypoint2.text
         let destText = tfDestination.text
         
+        //TODO: Handle waypoints.
         // Convert locations into coordinates, and process route.
         self.forwardGeocode(address:srcText!, completion: { placemark in
             print("Src: \(String(describing: placemark))")
             self.srcPlacemark = placemark
+            self.srcPin = self.drawDropPinOnMap(
+                location: (self.srcPlacemark?.location)!,
+                title: (placemark?.name)!,
+                mapView: self.myMapView,
+                oldPin: self.srcPin)
             self.requestDirections()
         })
         
         self.forwardGeocode(address:destText!, completion: { placemark in
             print("Dest: \(String(describing: placemark))")
             self.destPlacemark = placemark
+            self.destPin = self.drawDropPinOnMap(
+                location: (self.destPlacemark?.location)!,
+                title: (placemark?.name)!,
+                mapView: self.myMapView,
+                oldPin: self.destPin)
             self.requestDirections()
         })
         
@@ -259,16 +270,23 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         pin.coordinate = location.coordinate
     }
     
-    func drawDropPinOnMap(location : CLLocation, title : String, mapView : MKMapView) -> MKPointAnnotation {
+    func drawDropPinOnMap(location:CLLocation, title:String, mapView:MKMapView, oldPin:MKPointAnnotation?) -> MKPointAnnotation {
         // Draw named DropPin on MapView, returning DropPin.
         
-        let dropPin = MKPointAnnotation()
-        dropPin.coordinate = location.coordinate
-        dropPin.title = title
-        mapView.addAnnotation(dropPin)
-        mapView.selectAnnotation(dropPin, animated: true)
-        
-        return dropPin
+        if oldPin != nil {
+            // Relocate Pin.
+            oldPin?.coordinate = location.coordinate
+            return oldPin!
+        }
+        else {
+            // Create new Pin.
+            let pin = MKPointAnnotation()
+            pin.coordinate = location.coordinate
+            pin.title = title
+            mapView.addAnnotation(pin)
+            mapView.selectAnnotation(pin, animated: true)
+            return pin
+        }
     }
     
     // TableView content.
