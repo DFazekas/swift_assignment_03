@@ -86,7 +86,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                     title: (placemark?.name)!,
                     mapView: self.myMapView,
                     oldPin: self.srcPin)
-                self.requestDirections()
+                self.convergeCoordRequests()
             }
         })
         
@@ -100,7 +100,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                     title: (placemark?.name)!,
                     mapView: self.myMapView,
                     oldPin: self.way1Pin)
-                self.requestDirections()
+                self.convergeCoordRequests()
             }
         })
         
@@ -114,7 +114,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                     title: (placemark?.name)!,
                     mapView: self.myMapView,
                     oldPin: self.way2Pin)
-                self.requestDirections()
+                self.convergeCoordRequests()
             }
         })
         
@@ -128,7 +128,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                     title: (placemark?.name)!,
                     mapView: self.myMapView,
                     oldPin: self.destPin)
-                self.requestDirections()
+                self.convergeCoordRequests()
             }
         })
         
@@ -156,72 +156,99 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         }
     }
     
-    func requestDirections() {
+    func convergeCoordRequests() {
         // Converge async coordinate responses, and request directions b/w them.
+        
         print("RequestsWaiting: \(self.requestsWaiting)")
+        
         // Only if both placemarks have been found, and no waypoints are pending, request directions.
         if ((self.requestsWaiting == 0) && (self.srcPlacemark != nil && self.destPlacemark != nil)) {
             
-            // Convert placemarks into CLLocationCoordinate2D.
-            let srcCoordinates : CLLocationCoordinate2D = (self.srcPlacemark?.location?.coordinate)!
-            let destCoordinates : CLLocationCoordinate2D = (self.destPlacemark?.location?.coordinate)!
+            // Processes the route b/w 2 coordinates (src & dest).
+            // Build array of placemarks.
+            var placemarks : [CLPlacemark] = []
+            if self.srcPlacemark != nil {
+                placemarks.append(self.srcPlacemark!)
+            }
+            if self.way1Pin != nil {
+                placemarks.append(self.way1Placemark!)
+            }
+            if self.way2Pin != nil {
+                placemarks.append(self.way2Placemark!)
+            }
+            if self.destPin != nil {
+                placemarks.append(self.destPlacemark!)
+            }
             
-            // Create source & destination location objects.
-            let srcLocation = CLLocation(latitude: srcCoordinates.latitude,
-                                         longitude: srcCoordinates.longitude)
-            let destLocation = CLLocation(latitude: destCoordinates.latitude,
-                                          longitude: destCoordinates.longitude)
+            // Iterate through placemarks, processing the routes of two coordinates at a time.
+            for i in 0 ..< placemarks.count - 1 {
+                print("Processing: \n\(placemarks[i]) \n& \(placemarks[i+1])\n")
+                findRoute(srcPlacemark:placemarks[i], destPlacemark:placemarks[i+1])
+            }
             
-            // Build request for directions.
-            let directionRequest = MKDirectionsRequest()
-            directionRequest.source = MKMapItem(
-                placemark : MKPlacemark(
-                    coordinate : srcLocation.coordinate
-                )
-            )
-            directionRequest.destination = MKMapItem(
-                placemark : MKPlacemark(
-                    coordinate : destLocation.coordinate
-                )
-            )
-            
-            // Set transport type to automobile.
-            directionRequest.transportType = .automobile
-            
-            // Send async request for directions.
-            let directions = MKDirections(request: directionRequest)
-            directions.calculate(completionHandler: { (response, error) in
-                guard let directionResponse = response else {
-                    
-                    // Error handling.
-                    if let error = error {
-                        print("Error getting directions \n\(error.localizedDescription)")
-                    }
-                    return
-                }
-                
-                // Get route and assign to our route variable.
-                let route = directionResponse.routes[0]
-                
-                // Add route to our MapView.
-                self.myMapView.add(
-                    route.polyline,
-                    level: .aboveRoads)
-                
-                // Set rect of our MapView to fit the two locations.
-                let rect = route.polyline.boundingMapRect
-                self.myMapView.setRegion(MKCoordinateRegionForMapRect(rect), animated: true)
-                
-                self.routeSteps.removeAllObjects()
-                for step in route.steps {
-                    self.routeSteps.add(step.instructions)
-                }
-                // Update TableView with new directions.
-                self.myTableView.reloadData()
-            })
             
         }
         //TODO: Notify user of missing data.
+    }
+    
+    func findRoute(srcPlacemark:CLPlacemark, destPlacemark:CLPlacemark) {
+        // Convert placemarks into CLLocationCoordinate2D.
+        let srcCoordinates : CLLocationCoordinate2D = (srcPlacemark.location?.coordinate)!
+        let destCoordinates : CLLocationCoordinate2D = (destPlacemark.location?.coordinate)!
+        
+        // Create source & destination location objects.
+        let srcLocation = CLLocation(latitude: srcCoordinates.latitude,
+                                     longitude: srcCoordinates.longitude)
+        let destLocation = CLLocation(latitude: destCoordinates.latitude,
+                                      longitude: destCoordinates.longitude)
+        
+        // Build request for directions.
+        let directionRequest = MKDirectionsRequest()
+        directionRequest.source = MKMapItem(
+            placemark : MKPlacemark(
+                coordinate : srcLocation.coordinate
+            )
+        )
+        directionRequest.destination = MKMapItem(
+            placemark : MKPlacemark(
+                coordinate : destLocation.coordinate
+            )
+        )
+        
+        // Set transport type to automobile.
+        directionRequest.transportType = .automobile
+        
+        // Send async request for directions.
+        let directions = MKDirections(request: directionRequest)
+        directions.calculate(completionHandler: { (response, error) in
+            guard let directionResponse = response else {
+                
+                // Error handling.
+                if let error = error {
+                    print("Error getting directions \n\(error.localizedDescription)")
+                }
+                return
+            }
+            
+            // Get route and assign to our route variable.
+            let route = directionResponse.routes[0]
+            
+            // Add route to our MapView.
+            self.myMapView.add(
+                route.polyline,
+                level: .aboveRoads)
+            
+            // Set rect of our MapView to fit the two locations.
+            let rect = route.polyline.boundingMapRect
+            self.myMapView.setRegion(MKCoordinateRegionForMapRect(rect), animated: true)
+            
+            self.routeSteps.removeAllObjects()
+            for step in route.steps {
+                self.routeSteps.add(step.instructions)
+            }
+            // Update TableView with new directions.
+            self.myTableView.reloadData()
+        })
     }
     
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
