@@ -40,8 +40,6 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         // Center map on preset location.
         let initialLocation = CLLocation(latitude: 43.469147, longitude: -79.698603) // Initial location.
         centerMapOnLocation(location: initialLocation)
-        
-        //addBoundary(center: initialLocation.coordinate)
     }
 
     override func didReceiveMemoryWarning() {
@@ -72,8 +70,8 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         if way2Text != nil { self.requestsWaiting += 1 }
         if destText != nil { self.requestsWaiting += 1 }
         
-        // Clear all Pins from MapView.
-        self.clearPins()
+        // Clear MapView of all annotations and overlays.
+        self.clearMap()
         
         // Convert locations into coordinates, and process route.
         self.forwardGeocode(address:srcText, completion: { placemark in
@@ -81,12 +79,14 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.requestsWaiting -= 1
                 print("Src: \(String(describing: placemark))")
                 self.srcPlacemark = placemark
-                self.srcPin = self.drawDropPinOnMap(
+                self.drawDropPinOnMap(
                     location: (self.srcPlacemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView,
-                    oldPin: self.srcPin)
+                    mapView: self.myMapView)
+                
                 self.convergeCoordRequests()
+            } else {
+                self.srcPlacemark = nil
             }
         })
         
@@ -95,12 +95,14 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.requestsWaiting -= 1
                 print("Way1: \(String(describing: placemark))")
                 self.way1Placemark = placemark
-                self.way1Pin = self.drawDropPinOnMap(
+                self.drawDropPinOnMap(
                     location: (self.way1Placemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView,
-                    oldPin: self.way1Pin)
+                    mapView: self.myMapView)
+    
                 self.convergeCoordRequests()
+            } else {
+                self.way1Placemark = nil
             }
         })
         
@@ -109,12 +111,14 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.requestsWaiting -= 1
                 print("Way2: \(String(describing: placemark))")
                 self.way2Placemark = placemark
-                self.way2Pin = self.drawDropPinOnMap(
+                self.drawDropPinOnMap(
                     location: (self.way2Placemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView,
-                    oldPin: self.way2Pin)
+                    mapView: self.myMapView)
+                
                 self.convergeCoordRequests()
+            } else {
+                self.way2Placemark = nil
             }
         })
         
@@ -123,12 +127,14 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.requestsWaiting -= 1
                 print("Dest: \(String(describing: placemark))")
                 self.destPlacemark = placemark
-                self.destPin = self.drawDropPinOnMap(
+                self.drawDropPinOnMap(
                     location: (self.destPlacemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView,
-                    oldPin: self.destPin)
+                    mapView: self.myMapView)
+                
                 self.convergeCoordRequests()
+            } else {
+                self.destPlacemark = nil
             }
         })
         
@@ -163,7 +169,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         
         // Only if both placemarks have been found, and no waypoints are pending, request directions.
         if ((self.requestsWaiting == 0) && (self.srcPlacemark != nil && self.destPlacemark != nil)) {
-            
+        
             // Processes the route b/w 2 coordinates (src & dest).
             // Build array of placemarks.
             var placemarks : [CLPlacemark] = []
@@ -173,13 +179,13 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 // Redraw circle on MapView around source coordinates.
                 self.circle = addBoundary(center: (self.srcPlacemark?.location?.coordinate)!, oldCircle:self.circle)
             }
-            if self.way1Pin != nil {
+            if self.way1Placemark != nil {
                 placemarks.append(self.way1Placemark!)
             }
-            if self.way2Pin != nil {
+            if self.way2Placemark != nil {
                 placemarks.append(self.way2Placemark!)
             }
-            if self.destPin != nil {
+            if self.destPlacemark != nil {
                 placemarks.append(self.destPlacemark!)
             }
             
@@ -276,53 +282,29 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         return MKOverlayRenderer()
     }
 
-    func drawDropPinOnMap(location:CLLocation, title:String, mapView:MKMapView, oldPin:MKPointAnnotation?) -> MKPointAnnotation {
+    func drawDropPinOnMap(location:CLLocation, title:String, mapView:MKMapView) {
         // Draw named DropPin on MapView, returning DropPin.
-        
-        if oldPin != nil {
-            // Relocate Pin.
-            oldPin?.coordinate = location.coordinate
-            return oldPin!
-        }
-        else {
-            // Create new Pin.
-            let pin = MKPointAnnotation()
-            pin.coordinate = location.coordinate
-            pin.title = title
-            mapView.addAnnotation(pin)
-            mapView.selectAnnotation(pin, animated: true)
-            return pin
-        }
+    
+        let pin = MKPointAnnotation()
+        pin.coordinate = location.coordinate
+        pin.title = title
+        mapView.addAnnotation(pin)
+        mapView.selectAnnotation(pin, animated: true)
     }
     
-    func clearPins() {
+    func clearMap() {
         // Clear any existing Pins on the MapView.
         
-        if self.srcPin != nil {
-            self.myMapView.removeAnnotation(self.srcPin!)
-            self.srcPin = nil
-        }
-        if self.way1Pin != nil {
-            self.myMapView.removeAnnotation(self.way1Pin!)
-            self.way1Pin = nil
-        }
-        if self.way2Pin != nil {
-            self.myMapView.removeAnnotation(self.way2Pin!)
-            self.way2Pin = nil
-        }
-        if self.destPin != nil {
-            self.myMapView.removeAnnotation(self.destPin!)
-            self.destPin = nil
-        }
-    }
-    
-    func clearOverlays() {
-        // Clears all overlays from the MapView.
+        let allAnnotations = self.myMapView.annotations
+        self.myMapView.removeAnnotations(allAnnotations)
         
+        let allOverlays = self.myMapView.overlays
+        self.myMapView.removeOverlays(allOverlays)
     }
-    
+
     func addBoundary(center:CLLocationCoordinate2D, oldCircle:MKCircle?) -> MKCircle {
         // Draws a circle around the source coordinates.
+        
         if oldCircle != nil {
             self.myMapView.remove(oldCircle!)
         }
