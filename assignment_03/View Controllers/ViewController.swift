@@ -14,12 +14,15 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
 
     let locationManager = CLLocationManager() // Location manager.
     var srcPlacemark : CLPlacemark? = nil
+    var way1Placemark : CLPlacemark? = nil
+    var way2Placemark : CLPlacemark? = nil
     var destPlacemark : CLPlacemark? = nil
     var routeSteps = ["Enter a destination to see steps"] as NSMutableArray // List of directions.
     var srcPin : MKPointAnnotation? = nil // DropPin for starting location.
     var destPin : MKPointAnnotation? = nil // DropPin for destination location.
-    var waypointPin1 : MKPointAnnotation = MKPointAnnotation() // DropPin for waypoint 1.
-    var waypointPin2 : MKPointAnnotation = MKPointAnnotation() // DropPin for waypoint 2.
+    var way1Pin : MKPointAnnotation? = nil // DropPin for waypoint 1.
+    var way2Pin : MKPointAnnotation? = nil // DropPin for waypoint 2.
+    var requestsWaiting : Int = 0 // Only process directions when zero.
     
     
     @IBOutlet var myMapView : MKMapView!
@@ -58,68 +61,118 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
 
     @IBAction func submitLocations(sender : UIButton) {
         // Retrieve all destinations.
-        let srcText = tfSourse.text
-        let way1Text = tfWaypoint1.text
-        let way2Text = tfWaypoint2.text
-        let destText = tfDestination.text
+        let srcText = (tfSourse.text == "") ? nil : tfSourse.text
+        let way1Text = (tfWaypoint1.text == "") ? nil : tfWaypoint1.text
+        let way2Text = (tfWaypoint2.text == "") ? nil : tfWaypoint2.text
+        let destText = (tfDestination.text == "") ? nil : tfDestination.text
         
-        //TODO: Handle waypoints.
+        // Count number of locations to process.
+        if srcText != nil { self.requestsWaiting += 1 }
+        if way1Text != nil { self.requestsWaiting += 1 }
+        if way2Text != nil { self.requestsWaiting += 1 }
+        if destText != nil { self.requestsWaiting += 1 }
+        
+        // Clear all Pins from MapView.
+        self.clearPins()
+        
         // Convert locations into coordinates, and process route.
-        self.forwardGeocode(address:srcText!, completion: { placemark in
-            print("Src: \(String(describing: placemark))")
-            self.srcPlacemark = placemark
-            self.srcPin = self.drawDropPinOnMap(
-                location: (self.srcPlacemark?.location)!,
-                title: (placemark?.name)!,
-                mapView: self.myMapView,
-                oldPin: self.srcPin)
-            self.requestDirections()
+        self.forwardGeocode(address:srcText, completion: { placemark in
+            if placemark != nil {
+                self.requestsWaiting -= 1
+                print("Src: \(String(describing: placemark))")
+                self.srcPlacemark = placemark
+                self.srcPin = self.drawDropPinOnMap(
+                    location: (self.srcPlacemark?.location)!,
+                    title: (placemark?.name)!,
+                    mapView: self.myMapView,
+                    oldPin: self.srcPin)
+                self.requestDirections()
+            }
         })
         
-        self.forwardGeocode(address:destText!, completion: { placemark in
-            print("Dest: \(String(describing: placemark))")
-            self.destPlacemark = placemark
-            self.destPin = self.drawDropPinOnMap(
-                location: (self.destPlacemark?.location)!,
-                title: (placemark?.name)!,
-                mapView: self.myMapView,
-                oldPin: self.destPin)
-            self.requestDirections()
+        self.forwardGeocode(address:way1Text, completion: { placemark in
+            if placemark != nil {
+                self.requestsWaiting -= 1
+                print("Way1: \(String(describing: placemark))")
+                self.way1Placemark = placemark
+                self.way1Pin = self.drawDropPinOnMap(
+                    location: (self.way1Placemark?.location)!,
+                    title: (placemark?.name)!,
+                    mapView: self.myMapView,
+                    oldPin: self.way1Pin)
+                self.requestDirections()
+            }
+        })
+        
+        self.forwardGeocode(address:way2Text, completion: { placemark in
+            if placemark != nil {
+                self.requestsWaiting -= 1
+                print("Way2: \(String(describing: placemark))")
+                self.way2Placemark = placemark
+                self.way2Pin = self.drawDropPinOnMap(
+                    location: (self.way2Placemark?.location)!,
+                    title: (placemark?.name)!,
+                    mapView: self.myMapView,
+                    oldPin: self.way2Pin)
+                self.requestDirections()
+            }
+        })
+        
+        self.forwardGeocode(address:destText, completion: { placemark in
+            if placemark != nil {
+                self.requestsWaiting -= 1
+                print("Dest: \(String(describing: placemark))")
+                self.destPlacemark = placemark
+                self.destPin = self.drawDropPinOnMap(
+                    location: (self.destPlacemark?.location)!,
+                    title: (placemark?.name)!,
+                    mapView: self.myMapView,
+                    oldPin: self.destPin)
+                self.requestDirections()
+            }
         })
         
     }
     
-    func forwardGeocode(address:String, completion:@escaping (CLPlacemark?) -> ()) {
-        let geocoder = CLGeocoder()
-        
-        geocoder.geocodeAddressString(address, completionHandler: {(placemarks, error) -> Void in
-            if error != nil {
-                print("Error geoCoding text.")
-                completion(nil)
-            }
+    func forwardGeocode(address:String?, completion:@escaping (CLPlacemark?) -> ()) {
+        if address == nil {
+            completion(nil)
+        }
+        else {
+            let geocoder = CLGeocoder()
             
-            if let placemark = placemarks?.first {
-                //let coordinate : CLLocationCoordinate2D = placemark.location!.coordinate
-                completion(placemark)
-            }
-            
-        })
+            geocoder.geocodeAddressString(address!, completionHandler: {(placemarks, error) -> Void in
+                if error != nil {
+                    print("Error geoCoding text.")
+                    completion(nil)
+                }
+                
+                if let placemark = placemarks?.first {
+                    //let coordinate : CLLocationCoordinate2D = placemark.location!.coordinate
+                    completion(placemark)
+                }
+                
+            })
+        }
     }
     
     func requestDirections() {
         // Converge async coordinate responses, and request directions b/w them.
-        
-        if (self.srcPlacemark != nil && self.destPlacemark != nil) {
+        print("RequestsWaiting: \(self.requestsWaiting)")
+        // Only if both placemarks have been found, and no waypoints are pending, request directions.
+        if ((self.requestsWaiting == 0) && (self.srcPlacemark != nil && self.destPlacemark != nil)) {
             
-            // Only if both placemarks have been found, request directions.
+            // Convert placemarks into CLLocationCoordinate2D.
             let srcCoordinates : CLLocationCoordinate2D = (self.srcPlacemark?.location?.coordinate)!
             let destCoordinates : CLLocationCoordinate2D = (self.destPlacemark?.location?.coordinate)!
             
+            // Create source & destination location objects.
             let srcLocation = CLLocation(latitude: srcCoordinates.latitude,
                                          longitude: srcCoordinates.longitude)
             let destLocation = CLLocation(latitude: destCoordinates.latitude,
                                           longitude: destCoordinates.longitude)
             
+            // Build request for directions.
             let directionRequest = MKDirectionsRequest()
             directionRequest.source = MKMapItem(
                 placemark : MKPlacemark(
@@ -131,8 +184,11 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                     coordinate : destLocation.coordinate
                 )
             )
+            
+            // Set transport type to automobile.
             directionRequest.transportType = .automobile
             
+            // Send async request for directions.
             let directions = MKDirections(request: directionRequest)
             directions.calculate(completionHandler: { (response, error) in
                 guard let directionResponse = response else {
@@ -152,106 +208,21 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                     route.polyline,
                     level: .aboveRoads)
                 
-                // Setting rect of our MapView to fit the two locations.
+                // Set rect of our MapView to fit the two locations.
                 let rect = route.polyline.boundingMapRect
                 self.myMapView.setRegion(MKCoordinateRegionForMapRect(rect), animated: true)
+                
+                self.routeSteps.removeAllObjects()
+                for step in route.steps {
+                    self.routeSteps.add(step.instructions)
+                }
+                // Update TableView with new directions.
+                self.myTableView.reloadData()
             })
             
         }
         //TODO: Notify user of missing data.
     }
-    
-//
-//    func calculateRouteRequest(request:MKDirectionsRequest) {
-//        // Calculate travel route (async).
-//        let directions = MKDirections(request: request)
-//
-//        // Handle route request response.
-//        directions.calculate(completionHandler: {
-//            [unowned self] response, error in
-//            // Draw lines on map for User to follow while driving.
-//            for route in (response?.routes)! {
-//
-//                // Add polyline to MapView.
-//                self.myMapView.add(
-//                    route.polyline,
-//                    level : MKOverlayLevel.aboveRoads)
-//
-//                // Change visible portion of MapView.
-//                self.myMapView.setVisibleMapRect(
-//                    route.polyline.boundingMapRect,
-//                    animated: true)
-//
-//                // Fill TableView with directions.
-//                //TODO: Differentiate with SegmentView to add to.
-//                self.routeSteps.removeAllObjects()
-//                for step in route.steps {
-//                    self.routeSteps.add(step.instructions)
-//                }
-//                // Update TableView with new directions.
-//                self.myTableView.reloadData()
-//            }
-//        })
-//    }
-    
-    
-    
-//    func findDestination(srcText:String, destText:String) {
-//        // Handles finding routes to all locations.
-//        let geoCoder = CLGeocoder()
-//
-//        geoCoder.geocodeAddressString(destText, completionHandler: {
-//            (placemarks, error) -> Void in
-//            // Error handling.
-//            if error != nil {
-//                print("Error in geocoder")
-//                return
-//            }
-//
-//            // Get location that matches the user's entered destination.
-//            if let placemark = placemarks?.first {
-//                // Coodinates (Latitude and longitude) of location.
-//                let endCoordinates : CLLocationCoordinate2D = (placemark.location?.coordinate)!
-//
-//                // Convert coordinates to CLLocation object.
-//                let endLocation = CLLocation(latitude: endCoordinates.latitude,
-//                                             longitude: endCoordinates.longitude)
-//
-//                // Recenter map on destination.
-//                //TODO: Center in between all locations.
-//                self.centerMapOnLocation(location: endLocation)
-//
-//                // Create pin and drop.
-//                //TODO: Remove existing pin.
-//                self.destinationDropPin = self.drawDropPinOnMap(
-//                    location: endLocation,
-//                    title: placemark.name!,
-//                    mapView: self.myMapView)
-//
-//                // Determine travel route.
-//                let request = MKDirectionsRequest()
-//                // Starting location.
-//                request.source = MKMapItem(
-//                    placemark: MKPlacemark(
-//                        coordinate : self.initialLocation.coordinate
-//                    )
-//                )
-//                // Destination location.
-//                request.destination = MKMapItem(
-//                    placemark : MKPlacemark(
-//                        coordinate : endLocation.coordinate
-//                    )
-//                )
-//                request.requestsAlternateRoutes = false
-//                // Set transportation type to automobile.
-//                request.transportType = .automobile
-//
-//                //
-//                self.calculateRouteRequest(request:request)
-//
-//            }
-//        })
-//    }
     
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         // Customizes the appearance of polylines to be drawn on the MapView.
@@ -265,11 +236,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         
         return renderer
     }
-    
-    func redrawDropPin(mapView:MKMapView, pin:MKPointAnnotation, location:CLLocation, title:String) {
-        pin.coordinate = location.coordinate
-    }
-    
+
     func drawDropPinOnMap(location:CLLocation, title:String, mapView:MKMapView, oldPin:MKPointAnnotation?) -> MKPointAnnotation {
         // Draw named DropPin on MapView, returning DropPin.
         
@@ -286,6 +253,27 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             mapView.addAnnotation(pin)
             mapView.selectAnnotation(pin, animated: true)
             return pin
+        }
+    }
+    
+    func clearPins() {
+        // Clear any existing Pins on the MapView.
+        
+        if self.srcPin != nil {
+            self.myMapView.removeAnnotation(self.srcPin!)
+            self.srcPin = nil
+        }
+        if self.way1Pin != nil {
+            self.myMapView.removeAnnotation(self.way1Pin!)
+            self.way1Pin = nil
+        }
+        if self.way2Pin != nil {
+            self.myMapView.removeAnnotation(self.way2Pin!)
+            self.way2Pin = nil
+        }
+        if self.destPin != nil {
+            self.myMapView.removeAnnotation(self.destPin!)
+            self.destPin = nil
         }
     }
     
