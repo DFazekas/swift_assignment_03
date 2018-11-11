@@ -13,6 +13,7 @@ import MapKit
 class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, UITableViewDataSource, UITableViewDelegate {
 
     let locationManager = CLLocationManager() // Location manager.
+    var circle : MKCircle? = nil // Circle overlay around source coordinates.
     var srcPlacemark : CLPlacemark? = nil
     var way1Placemark : CLPlacemark? = nil
     var way2Placemark : CLPlacemark? = nil
@@ -40,8 +41,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         let initialLocation = CLLocation(latitude: 43.469147, longitude: -79.698603) // Initial location.
         centerMapOnLocation(location: initialLocation)
         
-        // Set the pin on the map.
-//        self.startingDropPin = self.drawDropPinOnMap(location: initialLocation, title: "Sheridan College", mapView: self.myMapView)
+        //addBoundary(center: initialLocation.coordinate)
     }
 
     override func didReceiveMemoryWarning() {
@@ -169,6 +169,9 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             var placemarks : [CLPlacemark] = []
             if self.srcPlacemark != nil {
                 placemarks.append(self.srcPlacemark!)
+                
+                // Redraw circle on MapView around source coordinates.
+                self.circle = addBoundary(center: (self.srcPlacemark?.location?.coordinate)!, oldCircle:self.circle)
             }
             if self.way1Pin != nil {
                 placemarks.append(self.way1Placemark!)
@@ -253,15 +256,24 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         // Customizes the appearance of polylines to be drawn on the MapView.
+        if overlay is MKPolyline {
+            // Obtain polyline renderer.
+            let renderer = MKPolylineRenderer(polyline : overlay as! MKPolyline)
+            
+            // Configure the polyline appearance.
+            renderer.strokeColor = .blue
+            renderer.lineWidth = 3.0
+            return renderer
+        }
+        else if overlay is MKCircle {
+            let renderer = MKCircleRenderer(circle: overlay as! MKCircle)
+            renderer.strokeColor = UIColor.red
+            renderer.fillColor = UIColor(red: 255, green: 0, blue: 0, alpha: 0.1)
+            renderer.lineWidth = 2.0
+            return renderer
+        }
         
-        // Obtain polyline renderer.
-        let renderer = MKPolylineRenderer(polyline : overlay as! MKPolyline)
-        
-        // Configure the polyline appearance.
-        renderer.strokeColor = .blue
-        renderer.lineWidth = 3.0
-        
-        return renderer
+        return MKOverlayRenderer()
     }
 
     func drawDropPinOnMap(location:CLLocation, title:String, mapView:MKMapView, oldPin:MKPointAnnotation?) -> MKPointAnnotation {
@@ -302,6 +314,22 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             self.myMapView.removeAnnotation(self.destPin!)
             self.destPin = nil
         }
+    }
+    
+    func clearOverlays() {
+        // Clears all overlays from the MapView.
+        
+    }
+    
+    func addBoundary(center:CLLocationCoordinate2D, oldCircle:MKCircle?) -> MKCircle {
+        // Draws a circle around the source coordinates.
+        if oldCircle != nil {
+            self.myMapView.remove(oldCircle!)
+        }
+        
+        let circle = MKCircle(center: center, radius: 25000)
+        self.myMapView.add(circle)
+        return circle
     }
     
     // TableView content.
