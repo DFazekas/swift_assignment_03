@@ -18,14 +18,10 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     var way1Placemark : CLPlacemark? = nil
     var way2Placemark : CLPlacemark? = nil
     var destPlacemark : CLPlacemark? = nil
-    var allRoutes = [Int: MKRoute]()
-    var routeSteps = ["Enter a destination to see steps"] as NSMutableArray // List of directions.
-    var srcPin : MKPointAnnotation? = nil // DropPin for starting location.
-    var destPin : MKPointAnnotation? = nil // DropPin for destination location.
-    var way1Pin : MKPointAnnotation? = nil // DropPin for waypoint 1.
-    var way2Pin : MKPointAnnotation? = nil // DropPin for waypoint 2.
-    var requestsWaiting : Int = 0 // Only process directions when zero.
-    
+    var allRoutes = [Int: MKRoute]() // Directory of routes with keys representing order of execution.
+    var routeSteps = ["Enter a destination to see steps"] as NSMutableArray // List of directions to display.
+    var requestsWaiting : Int = 0 // Used to converge async calls.
+    let radius = 25000 // Radius around Source.
     
     @IBOutlet var myMapView : MKMapView!
     @IBOutlet var tfSourse : UITextField!
@@ -50,6 +46,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         super.didReceiveMemoryWarning()
     }
 
+    
     // MapView content.
     func centerMapOnLocation(location : CLLocation) {
         // Centers the MapView on the provided location.
@@ -74,7 +71,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         if way2Text != nil { self.requestsWaiting += 1 }
         if destText != nil { self.requestsWaiting += 1 }
         
-        // Clear MapView of all annotations and overlays.
+        // Clear any persisting data.
         self.clearMap()
         self.clearDirections()
         self.allRoutes.removeAll()
@@ -83,15 +80,20 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         // Convert locations into coordinates, and process route.
         self.forwardGeocode(address:srcText, completion: { placemark in
             if placemark != nil {
+                
+                // Async request responsed, reduce counter.
                 self.requestsWaiting -= 1
-                print("Src: \(String(describing: placemark))")
+                
                 self.srcPlacemark = placemark
+                
+                // Place Pin.
                 self.drawDropPinOnMap(
                     location: (self.srcPlacemark?.location)!,
                     title: (placemark?.name)!,
                     mapView: self.myMapView
                 )
                 
+                // Attempt converging async responses.
                 self.convergeCoordRequests()
             } else {
                 self.srcPlacemark = nil
@@ -100,15 +102,20 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         
         self.forwardGeocode(address:way1Text, completion: { placemark in
             if placemark != nil {
+                
+                // Async request responsed, reduce counter.
                 self.requestsWaiting -= 1
-                print("Way1: \(String(describing: placemark))")
+                
                 self.way1Placemark = placemark
+                
+                // Place Pin.
                 self.drawDropPinOnMap(
                     location: (self.way1Placemark?.location)!,
                     title: (placemark?.name)!,
                     mapView: self.myMapView
                 )
                 
+                // Attempt converging async responses.
                 self.convergeCoordRequests()
             } else {
                 self.way1Placemark = nil
@@ -117,15 +124,19 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         
         self.forwardGeocode(address:way2Text, completion: { placemark in
             if placemark != nil {
+                // Async request responsed, reduce counter.
                 self.requestsWaiting -= 1
-                print("Way2: \(String(describing: placemark))")
+                
                 self.way2Placemark = placemark
+                
+                // Place Pin.
                 self.drawDropPinOnMap(
                     location: (self.way2Placemark?.location)!,
                     title: (placemark?.name)!,
                     mapView: self.myMapView
                 )
                 
+                // Attempt converging async responses.
                 self.convergeCoordRequests()
             } else {
                 self.way2Placemark = nil
@@ -134,15 +145,20 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         
         self.forwardGeocode(address:destText, completion: { placemark in
             if placemark != nil {
+                
+                // Async request responsed, reduce counter.
                 self.requestsWaiting -= 1
-                print("Dest: \(String(describing: placemark))")
+                
                 self.destPlacemark = placemark
+                
+                // Place Pin.
                 self.drawDropPinOnMap(
                     location: (self.destPlacemark?.location)!,
                     title: (placemark?.name)!,
                     mapView: self.myMapView
                 )
                 
+                // Attempt converging async responses.
                 self.convergeCoordRequests()
             } else {
                 self.destPlacemark = nil
@@ -152,6 +168,8 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     }
     
     func forwardGeocode(address:String?, completion:@escaping (CLPlacemark?) -> ()) {
+        // Async decodes string address into coordinates.
+        
         if address == nil {
             completion(nil)
         }
@@ -176,33 +194,42 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     func convergeCoordRequests() {
         // Converge async coordinate responses, and request directions b/w them.
         
-        print("RequestsWaiting: \(self.requestsWaiting)")
-        
         // Only if both placemarks have been found, and no waypoints are pending, request directions.
         if ((self.requestsWaiting == 0) && (self.srcPlacemark != nil && self.destPlacemark != nil)) {
         
             // Processes the route b/w 2 coordinates (src & dest).
-            // Build array of placemarks.
             var placemarks : [CLPlacemark] = []
             var outOfBoundsNames : [String] = []
             
             if self.srcPlacemark != nil {
                 placemarks.append(self.srcPlacemark!)
+                
                 // Redraw circle on MapView around source coordinates.
                 self.circle = addBoundary(center: (self.srcPlacemark?.location?.coordinate)!, oldCircle:self.circle)
             }
             if self.way1Placemark != nil {
                 placemarks.append(self.way1Placemark!)
-                outOfBoundsNames.append((way1Placemark?.name!)!)
+                
+                if checkAgainstRadius(placemark:self.way1Placemark!) == false {
+                    outOfBoundsNames.append((self.way1Placemark?.name!)!)
+                }
             }
             if self.way2Placemark != nil {
                 placemarks.append(self.way2Placemark!)
-                outOfBoundsNames.append((way2Placemark?.name!)!)
+                
+                if checkAgainstRadius(placemark:self.way2Placemark!) == false {
+                    outOfBoundsNames.append((self.way2Placemark?.name!)!)
+                }
             }
             if self.destPlacemark != nil {
                 placemarks.append(self.destPlacemark!)
-                outOfBoundsNames.append((destPlacemark?.name!)!)
+                
+                if checkAgainstRadius(placemark:self.destPlacemark!) == false {
+                    outOfBoundsNames.append((self.destPlacemark?.name!)!)
+                }
             }
+            
+            // Inform user of any locations outside the source radius.
             self.alertUser(titles: outOfBoundsNames, srcTitle: (self.srcPlacemark?.name)!)
             
             // Iterate through placemarks, processing the routes of two coordinates at a time.
@@ -211,10 +238,19 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 findRoute(srcPlacemark:placemarks[index], destPlacemark:placemarks[index+1], index:index)
             }
             
+            // Print all directions at once.
             self.printDirections()
             
         }
-        //TODO: Notify user of missing data.
+    }
+    
+    func checkAgainstRadius(placemark:CLPlacemark) -> Bool {
+        // Return TRUE if outside source's radius; FALSE otherwise.
+        
+        // Distance b/w placemark and source, in meters (1 mile = 1609 meters).
+        let distanceFromSource = placemark.location?.distance(from: (self.srcPlacemark?.location)!)
+        
+        return (distanceFromSource?.magnitude)! < Double(self.radius)
     }
     
     func findRoute(srcPlacemark:CLPlacemark, destPlacemark:CLPlacemark, index:Int) {
@@ -272,7 +308,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             // Set rect of our MapView to fit the two locations.
             let rect = route.polyline.boundingMapRect
             self.myMapView.setRegion(MKCoordinateRegionForMapRect(rect), animated: true)
-            
+    
             self.printDirections()
         })
     }
@@ -283,16 +319,17 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             // Display directions in TableView.
             for (index, route) in self.allRoutes.enumerated() {
                 
-                
+                // Creates title for SegmentControl.
                 let title = (index != self.allRoutes.count - 1) ? "Stop \(index+1)" : "Destination"
+                
+                // Creates new SegmentControl
                 self.mySegmentView.insertSegment(withTitle: title, at: index, animated: true)
                 
+                // Stores all directions for one route.
                 for step in route.value.steps {
                     self.routeSteps.add(step.instructions)
                 }
             }
-            
-            
             
             // Update TableView with new directions.
             self.myTableView.reloadData()
@@ -300,7 +337,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     }
     
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-        // Customizes the appearance of polylines to be drawn on the MapView.
+        // Customizes the appearance of polylines and circles to be drawn on the MapView.
         if overlay is MKPolyline {
             // Obtain polyline renderer.
             let renderer = MKPolylineRenderer(polyline : overlay as! MKPolyline)
@@ -311,7 +348,10 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             return renderer
         }
         else if overlay is MKCircle {
+            // Obtain circle renderer.
             let renderer = MKCircleRenderer(circle: overlay as! MKCircle)
+            
+            // Configure the circle appearance.
             renderer.strokeColor = UIColor.red
             renderer.fillColor = UIColor(red: 255, green: 0, blue: 0, alpha: 0.1)
             renderer.lineWidth = 2.0
@@ -348,7 +388,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             self.myMapView.remove(oldCircle!)
         }
         
-        let circle = MKCircle(center: center, radius: 25000)
+        let circle = MKCircle(center: center, radius: CLLocationDistance(self.radius))
         self.myMapView.add(circle)
         return circle
     }
@@ -379,33 +419,35 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     
     // SegmentedView content.
     @IBAction func segmentChanged(sender : UISegmentedControl) {
-        switch sender.selectedSegmentIndex {
-        case 0:
-            print("First")
-        case 1:
-            print("Second")
-        case 2:
-            print("Third")
-        default:
-            print("Unknown segment control")
+        // Handles SegmentControl value change - display directions.
+        
+        self.routeSteps.removeAllObjects()
+        
+        let index = sender.selectedSegmentIndex
+        let route = self.allRoutes[index]
+        for step in (route?.steps)! {
+            self.routeSteps.add(step.instructions)
         }
         
+        // Update TableView with new directions.
+        self.myTableView.reloadData()
     }
     
     
     // Alert content.
     func alertUser(titles:[String], srcTitle:String) {
         // Alert the user of the locations that are outside the source coordinate.
-        
-        let alert = UIAlertController(
-            title: "Out of bounds",
-            message: "The following locations are outside the 25km radius around \(srcTitle):\n\(titles)",
-            preferredStyle: .alert
-        )
-        
-        alert.addAction(UIAlertAction(title: "Close", style: .cancel, handler: nil))
-        
-        self.present(alert, animated: true)
+        if !titles.isEmpty {
+            let alert = UIAlertController(
+                title: "Out of bounds",
+                message: "The following locations are outside the 25km radius around \(srcTitle):\n\(titles)",
+                preferredStyle: .alert
+            )
+            
+            alert.addAction(UIAlertAction(title: "Close", style: .cancel, handler: nil))
+            
+            self.present(alert, animated: true)
+        }
     }
     
     
