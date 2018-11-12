@@ -18,6 +18,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     var way1Placemark : CLPlacemark? = nil
     var way2Placemark : CLPlacemark? = nil
     var destPlacemark : CLPlacemark? = nil
+    var allRoutes = [Int: MKRoute]()
     var routeSteps = ["Enter a destination to see steps"] as NSMutableArray // List of directions.
     var srcPin : MKPointAnnotation? = nil // DropPin for starting location.
     var destPin : MKPointAnnotation? = nil // DropPin for destination location.
@@ -32,7 +33,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
     @IBOutlet var tfWaypoint1 : UITextField!
     @IBOutlet var tfWaypoint2 : UITextField!
     @IBOutlet var myTableView : UITableView!
-    
+    @IBOutlet var mySegmentView : UISegmentedControl!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,6 +41,9 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         // Center map on preset location.
         let initialLocation = CLLocation(latitude: 43.469147, longitude: -79.698603) // Initial location.
         centerMapOnLocation(location: initialLocation)
+        
+        // Clear SegmentView.
+        mySegmentView.removeAllSegments()
     }
 
     override func didReceiveMemoryWarning() {
@@ -72,6 +76,9 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         
         // Clear MapView of all annotations and overlays.
         self.clearMap()
+        self.clearDirections()
+        self.allRoutes.removeAll()
+        self.mySegmentView.removeAllSegments()
         
         // Convert locations into coordinates, and process route.
         self.forwardGeocode(address:srcText, completion: { placemark in
@@ -82,7 +89,8 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.drawDropPinOnMap(
                     location: (self.srcPlacemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView)
+                    mapView: self.myMapView
+                )
                 
                 self.convergeCoordRequests()
             } else {
@@ -98,8 +106,9 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.drawDropPinOnMap(
                     location: (self.way1Placemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView)
-    
+                    mapView: self.myMapView
+                )
+                
                 self.convergeCoordRequests()
             } else {
                 self.way1Placemark = nil
@@ -114,7 +123,8 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.drawDropPinOnMap(
                     location: (self.way2Placemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView)
+                    mapView: self.myMapView
+                )
                 
                 self.convergeCoordRequests()
             } else {
@@ -130,7 +140,8 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 self.drawDropPinOnMap(
                     location: (self.destPlacemark?.location)!,
                     title: (placemark?.name)!,
-                    mapView: self.myMapView)
+                    mapView: self.myMapView
+                )
                 
                 self.convergeCoordRequests()
             } else {
@@ -173,34 +184,40 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             // Processes the route b/w 2 coordinates (src & dest).
             // Build array of placemarks.
             var placemarks : [CLPlacemark] = []
+            var outOfBoundsNames : [String] = []
+            
             if self.srcPlacemark != nil {
                 placemarks.append(self.srcPlacemark!)
-                
                 // Redraw circle on MapView around source coordinates.
                 self.circle = addBoundary(center: (self.srcPlacemark?.location?.coordinate)!, oldCircle:self.circle)
             }
             if self.way1Placemark != nil {
                 placemarks.append(self.way1Placemark!)
+                outOfBoundsNames.append((way1Placemark?.name!)!)
             }
             if self.way2Placemark != nil {
                 placemarks.append(self.way2Placemark!)
+                outOfBoundsNames.append((way2Placemark?.name!)!)
             }
             if self.destPlacemark != nil {
                 placemarks.append(self.destPlacemark!)
+                outOfBoundsNames.append((destPlacemark?.name!)!)
             }
+            self.alertUser(titles: outOfBoundsNames, srcTitle: (self.srcPlacemark?.name)!)
             
             // Iterate through placemarks, processing the routes of two coordinates at a time.
-            for i in 0 ..< placemarks.count - 1 {
-                print("Processing: \n\(placemarks[i]) \n& \(placemarks[i+1])\n")
-                findRoute(srcPlacemark:placemarks[i], destPlacemark:placemarks[i+1])
+            for index in 0 ..< placemarks.count - 1 {
+                self.requestsWaiting += 1
+                findRoute(srcPlacemark:placemarks[index], destPlacemark:placemarks[index+1], index:index)
             }
             
+            self.printDirections()
             
         }
         //TODO: Notify user of missing data.
     }
     
-    func findRoute(srcPlacemark:CLPlacemark, destPlacemark:CLPlacemark) {
+    func findRoute(srcPlacemark:CLPlacemark, destPlacemark:CLPlacemark, index:Int) {
         // Convert placemarks into CLLocationCoordinate2D.
         let srcCoordinates : CLLocationCoordinate2D = (srcPlacemark.location?.coordinate)!
         let destCoordinates : CLLocationCoordinate2D = (destPlacemark.location?.coordinate)!
@@ -230,8 +247,11 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         // Send async request for directions.
         let directions = MKDirections(request: directionRequest)
         directions.calculate(completionHandler: { (response, error) in
+            
+            // Async response, reduce counter.
+            self.requestsWaiting -= 1
+            
             guard let directionResponse = response else {
-                
                 // Error handling.
                 if let error = error {
                     print("Error getting directions \n\(error.localizedDescription)")
@@ -239,8 +259,10 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
                 return
             }
             
+            
             // Get route and assign to our route variable.
             let route = directionResponse.routes[0]
+            self.allRoutes[index] = route
             
             // Add route to our MapView.
             self.myMapView.add(
@@ -251,13 +273,30 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
             let rect = route.polyline.boundingMapRect
             self.myMapView.setRegion(MKCoordinateRegionForMapRect(rect), animated: true)
             
-            self.routeSteps.removeAllObjects()
-            for step in route.steps {
-                self.routeSteps.add(step.instructions)
+            self.printDirections()
+        })
+    }
+    
+    func printDirections() {
+        // Get directions.
+        if self.requestsWaiting == 0 {
+            // Display directions in TableView.
+            for (index, route) in self.allRoutes.enumerated() {
+                
+                
+                let title = (index != self.allRoutes.count - 1) ? "Stop \(index+1)" : "Destination"
+                self.mySegmentView.insertSegment(withTitle: title, at: index, animated: true)
+                
+                for step in route.value.steps {
+                    self.routeSteps.add(step.instructions)
+                }
             }
+            
+            
+            
             // Update TableView with new directions.
             self.myTableView.reloadData()
-        })
+        }
     }
     
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -313,6 +352,7 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         self.myMapView.add(circle)
         return circle
     }
+
     
     // TableView content.
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -330,7 +370,45 @@ class ViewController: UIViewController, UITextViewDelegate, MKMapViewDelegate, U
         return tableCell
     }
 
-
+    func clearDirections() {
+        // Clear directions.
+        
+        self.routeSteps.removeAllObjects()
+    }
+    
+    
+    // SegmentedView content.
+    @IBAction func segmentChanged(sender : UISegmentedControl) {
+        switch sender.selectedSegmentIndex {
+        case 0:
+            print("First")
+        case 1:
+            print("Second")
+        case 2:
+            print("Third")
+        default:
+            print("Unknown segment control")
+        }
+        
+    }
+    
+    
+    // Alert content.
+    func alertUser(titles:[String], srcTitle:String) {
+        // Alert the user of the locations that are outside the source coordinate.
+        
+        let alert = UIAlertController(
+            title: "Out of bounds",
+            message: "The following locations are outside the 25km radius around \(srcTitle):\n\(titles)",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Close", style: .cancel, handler: nil))
+        
+        self.present(alert, animated: true)
+    }
+    
+    
     // Keyboard content.
     func textFieldShouldReturn(textField : UITextField) -> Bool {
         return textField.resignFirstResponder()

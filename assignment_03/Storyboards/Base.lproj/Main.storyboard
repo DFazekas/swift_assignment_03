@@ -51,10 +51,12 @@
                                 <rect key="frame" x="0.0" y="494" width="375" height="29"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <segments>
-                                    <segment title="Waypoint 1"/>
-                                    <segment title="Waypoint 2"/>
-                                    <segment title="Destination"/>
+                                    <segment title="Test 1"/>
+                                    <segment title="Test 2"/>
                                 </segments>
+                                <connections>
+                                    <action selector="segmentChangedWithSender:" destination="BYZ-38-t0r" eventType="valueChanged" id="i3o-ZW-1Ga"/>
+                                </connections>
                             </segmentedControl>
                             <textField opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Choose source" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="tB2-tj-sGw">
                                 <rect key="frame" x="16" y="71" width="165" height="30"/>
@@ -90,6 +92,7 @@
                     </view>
                     <connections>
                         <outlet property="myMapView" destination="jwd-G0-rvg" id="AyP-fJ-HEs"/>
+                        <outlet property="mySegmentView" destination="Edw-Nl-qyp" id="55e-SA-oyz"/>
                         <outlet property="myTableView" destination="Lbc-fB-7me" id="BNP-ey-W0q"/>
                         <outlet property="tfDestination" destination="DL7-LP-rzt" id="vAQ-MH-qgq"/>
                         <outlet property="tfSourse" destination="tB2-tj-sGw" id="rf5-O2-lss"/>
